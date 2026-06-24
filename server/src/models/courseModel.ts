@@ -1,0 +1,67 @@
+import { Schema, model, type Document, type Model, type Types } from "mongoose";
+
+interface VideoAsset {
+  public_id: string;
+  url: string;
+}
+
+interface ILecture {
+  _id: Types.ObjectId;
+  title: string;
+  description: string;
+  video: VideoAsset;
+}
+
+export interface ICourse extends Document {
+  _id: Types.ObjectId;
+  title: string;
+  description: string;
+  category: string;
+  createdBy: string;
+  /** Price in INR (rupees, not paise). `0` = free. */
+  price: number;
+  poster: VideoAsset;
+  lectures: ILecture[];
+  views: number;
+  numberOfVideos: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ICourseModel extends Model<ICourse> {}
+
+// Embedded lectures — preserves legacy data shape, no migration needed.
+const lectureSchema = new Schema<ILecture>(
+  {
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    video: {
+      public_id: { type: String, required: true },
+      url: { type: String, required: true },
+    },
+  },
+  { _id: true },
+);
+
+const courseSchema = new Schema<ICourse, ICourseModel>(
+  {
+    title: { type: String, required: true, minlength: 5, maxlength: 50 },
+    description: { type: String, required: true, minlength: 5 },
+    category: { type: String, required: true },
+    createdBy: { type: String, required: true },
+    price: { type: Number, required: true, min: 0, default: 0 },
+    poster: {
+      public_id: { type: String, required: true },
+      url: { type: String, required: true },
+    },
+    lectures: [lectureSchema],
+    views: { type: Number, default: 0 },
+    numberOfVideos: { type: Number, default: 0 },
+  },
+  { timestamps: true },
+);
+
+// Text index for `/courses?keyword=…` search.
+courseSchema.index({ title: "text", category: "text" });
+
+export const Course = model<ICourse, ICourseModel>("Course", courseSchema);
