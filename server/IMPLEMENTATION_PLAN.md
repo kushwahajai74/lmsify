@@ -324,6 +324,19 @@ export const storage = {
 
 **Why this replaces Cloudinary cleanly:** the existing controllers already pass `public_id` + `url` pairs around — we keep that shape. No `datauri`, no base64.
 
+> **Upload pattern: presigned URLs for everything (locked 2026-06-24)**
+>
+> - **All uploads** — avatars, posters, lecture videos — go through
+>   presigned URLs. **Multer is not used anywhere in this build.**
+> - **Why this matters** — in-memory upload risks OOM at modest concurrency
+>   (10 concurrent 200 MB uploads = 2 GB RAM just for buffers). Presigned
+>   URLs scale to any number of users and any file size with zero server cost.
+> - **R2 CORS** — the bucket must allow `PUT` from `env.FRONTEND_URL` with
+>   `Content-Type` and `x-amz-*` headers. One-time config in the Cloudflare
+>   dashboard or via Wrangler.
+> - **Required dep** — `@aws-sdk/s3-request-presigner` (provides
+>   `getSignedUrl()`). `storage.presignPut()` is the entry point.
+
 ### `services/tokenService.ts`
 
 ```ts
