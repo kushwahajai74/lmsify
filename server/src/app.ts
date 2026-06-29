@@ -12,14 +12,36 @@ import { errorHandler } from "./middlewares/error.js";
 import { authRouter } from "./routes/authRoutes.js";
 import { userRouter } from "./routes/userRoutes.js";
 import { courseRouter } from "./routes/courseRoutes.js";
+import { paymentRouter } from "./routes/paymentRoutes.js";
 
 export const app = express();
 
 // --- Body parsers (no file uploads — all uploads go through presigned URLs) ---
+// Razorpay webhook FIRST, scoped to its exact path. The webhook needs the
+// raw body bytes for HMAC verification; express.json() would consume them.
+// Path-scoped middlewares only fire on matching URLs, so the global JSON
+// parser continues to serve every other route unchanged. Must be registered
+// BEFORE the global express.json() so it wins the middleware chain.
+app.use(
+  "/api/v1/payment/webhook",
+  express.raw({ type: "application/json", limit: "1mb" }),
+);
+
 // 5 MB is plenty for JSON bodies (register, profile update, payment verification).
 // Files of any size are PUT directly to R2 from the browser, bypassing this server.
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// --- Boot-time webhook secret assert ---
+// If the webhook route is mounted, the webhook secret MUST be set — otherwise
+// every webhook fails HMAC verification with a generic 400 that's a nightmare
+// to debug. Fail loud here so the deploy is broken immediately, not silently.
+if (!env.RAZORPAY_WEBHOOK_SECRET) {
+  throw new Error(
+    "RAZORPAY_WEBHOOK_SECRET is required when the webhook route is mounted. " +
+      "Configure it in Razorpay Dashboard → Webhooks, then add it to .env.",
+  );
+}
 
 // --- Cookies + logging ---
 // cookie-parser is only needed for the refresh-token cookie on /api/v1/auth/*.
@@ -57,7 +79,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1", courseRouter);
-// app.use("/api/v1", paymentRoutes);
+app.use("/api/v1", paymentRouter);
 
 // --- Global error handler — MUST be last, AFTER all routes ---
 // Catches anything thrown anywhere upstream and serialises as
