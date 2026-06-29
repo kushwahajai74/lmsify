@@ -1,16 +1,6 @@
 import bcrypt from "bcrypt";
 import { Schema, model, type Document, type Model, type Types } from "mongoose";
 
-/**
- * Avatar stored in R2. `public_id` is the object key; `url` is the public URL.
- * Same shape returned by `storage.put()` so controllers can pass it straight
- * through.
- */
-interface Avatar {
-  public_id: string;
-  url: string;
-}
-
 interface PlaylistEntry {
   course: Types.ObjectId;
   poster: string;
@@ -22,7 +12,6 @@ export interface IUser extends Document {
   email: string;
   password: string;
   role: "user" | "admin";
-  avatar: Avatar;
   purchasedCourses: Types.ObjectId[];
   playlist: PlaylistEntry[];
   createdAt: Date;
@@ -46,10 +35,6 @@ const userSchema = new Schema<IUser, IUserModel>(
     },
     password: { type: String, required: true, minlength: 6, select: false },
     role: { type: String, enum: ["user", "admin"], default: "user" },
-    avatar: {
-      public_id: { type: String, required: true },
-      url: { type: String, required: true },
-    },
     // Courses the user has bought (lifetime access). Populated by paymentController.
     purchasedCourses: [{ type: Schema.Types.ObjectId, ref: "Course" }],
     playlist: [{ course: { type: Schema.Types.ObjectId, ref: "Course" }, poster: String }],

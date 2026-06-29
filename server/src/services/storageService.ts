@@ -2,7 +2,7 @@ import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
 import { R2_BUCKET, R2_PUBLIC_URL, r2 } from "../config/r2.js";
-import type { R2Folder } from "../utils/constants.js";
+import { MIME_TO_EXT, type R2Folder } from "../utils/constants.js";
 
 /**
  * Default URL expiry for presigned uploads — 10 minutes.
@@ -12,10 +12,13 @@ const PRESIGN_EXPIRES_SECONDS = 10 * 60;
 
 /**
  * Computes the R2 object key for a new upload.
- *   - `presignPut` (browser-driven): ext defaults to "bin" since the browser
- *     sends whatever the file actually is. The MIME type is preserved via
- *     `ContentType` on the presigned command, so the file plays correctly.
- *   - `put` (server-driven): ext is inferred from the filename.
+ *
+ * Ext resolution order:
+ *   1. Explicit `ext` argument (server-driven `put` from a filename).
+ *   2. MIME-type → extension lookup (browser-driven `presignPut` when the
+ *      caller told us the content type upfront).
+ *   3. `bin` fallback (shouldn't happen in practice — controllers validate
+ *      the content type before reaching here).
  */
 function makeKey(folder: R2Folder, ext: string): string {
   return `${folder}/${randomUUID()}.${ext}`;
@@ -43,8 +46,12 @@ export const storage = {
   async presignPut(
     folder: R2Folder,
     opts: { contentType?: string } = {},
-  ) {
-    const key = makeKey(folder, "bin");
+  ): Promise<{ uploadUrl: string; publicId: string; url: string; expiresIn: number; }> {
+    // Look up extension from MIME so the object key ends in `.png`/`.jpg`/etc.
+    // Falls back to `bin` if the caller didn't pass a contentType or if the
+    // MIME isn't in our map (defensive — controllers should have rejected it).
+    const ext = (opts.contentType && MIME_TO_EXT[opts.contentType]) || "bin";
+    const key = makeKey(folder, ext);
     const command = new PutObjectCommand({
       Bucket: R2_BUCKET,
       Key: key,

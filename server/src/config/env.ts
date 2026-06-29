@@ -19,6 +19,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
   FRONTEND_URL: z.string().url(),
+  /** Pino log level — "trace" | "debug" | "info" | "warn" | "error" | "fatal". */
+  LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).optional(),
 
   // Mongo
   MONGO_URI: z.string().min(1),
@@ -44,6 +46,13 @@ const envSchema = z.object({
   // Razorpay (Orders API for one-time course payments)
   RAZORPAY_API_KEY: z.string().min(1),
   RAZORPAY_API_SECRET: z.string().min(1),
+  /**
+   * Webhook secret is optional at the schema layer — only required when the
+   * webhook route is mounted. `app.ts` asserts presence at mount time so the
+   * app boots into a loud error instead of failing every webhook with a 400.
+   * Distinct from RAZORPAY_API_SECRET; configured in the Razorpay dashboard.
+   */
+  RAZORPAY_WEBHOOK_SECRET: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

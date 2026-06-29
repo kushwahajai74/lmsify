@@ -3,12 +3,23 @@ import type { ZodTypeAny } from "zod";
 import { AppError } from "../utils/AppError.js";
 
 /**
- * Zod validator factory. Parses `req[source]`, replaces it with the typed
- * result on success, or forwards a 400 `AppError` on failure.
+ * Zod validator factory. Parses `req[source]` and stashes the typed result
+ * on `req.validated[source]`, or forwards a 400 `AppError` on failure.
+ *
+ * Why not reassign `req[source]` directly?
+ *   - `req.query` is a getter-only property in Express 5 / Node 20+.
+ *     Assigning to it throws `Cannot set property query of #<IncomingMessage>`.
+ *   - `req.body` and `req.params` are settable but doing so silently drops any
+ *     extra keys the client sent. Stashing on `req.validated` keeps the raw
+ *     `req.*` intact for diagnostics.
  *
  * Usage:
- *   router.post("/login", validate(loginSchema), login);
- *   router.get ("/courses", validate(paginationSchema, "query"), getCourses);
+ *   router.post("/login",   validate(loginSchema),                   login);
+ *   router.get ("/courses", validate(paginationSchema, "query"),     getCourses);
+ *
+ * Read in controllers as:
+ *   const { keyword } = req.validated!.query as PaginationQuery;
+ *   const { title  } = req.validated!.body  as CreateCourseBody;
  */
 export const validate =
   (schema: ZodTypeAny, source: "body" | "query" | "params" = "body") =>
@@ -20,7 +31,8 @@ export const validate =
         .join("; ");
       return next(new AppError(message, 400));
     }
-    // Replace with parsed (coerced) value so downstream code gets the typed shape.
-    (req as unknown as Record<string, unknown>)[source] = result.data;
+    // Spread preserves values from any prior `validate(..., other-source)` run
+    // on the same request (uncommon, but free to support).
+    req.validated = { ...req.validated, [source]: result.data };
     next();
   };

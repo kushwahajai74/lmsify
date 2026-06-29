@@ -16,6 +16,18 @@ declare global {
     // eslint-disable-next-line @typescript-eslint/no-empty-interface
     interface Request {
       user?: IUser;
+      /**
+       * Typed/parsed values produced by the `validate(schema, source)` middleware.
+       * Populated per-source as validators run. Read with
+       * `req.validated!.body` / `.query` / `.params` and cast to the inferred
+       * schema type (e.g. `PaginationQuery`, `CreateCourseBody`).
+       *
+       * We don't reuse `req.body` / `req.query` / `req.params` for the parsed
+       * result — Express 5 makes `req.query` a getter-only property, and the
+       * other two are also bad targets (they're plain objects, but reassigning
+       * them works only by accident).
+       */
+      validated?: { body?: unknown; query?: unknown; params?: unknown };
     }
   }
 }

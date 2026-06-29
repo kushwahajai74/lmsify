@@ -7,7 +7,11 @@ import cors from "cors";
 import { pinoHttp } from "pino-http";
 
 import { env } from "./config/env.js";
+import { logger } from "./utils/logger.js";
 import { errorHandler } from "./middlewares/error.js";
+import { authRouter } from "./routes/authRoutes.js";
+import { userRouter } from "./routes/userRoutes.js";
+import { courseRouter } from "./routes/courseRoutes.js";
 
 export const app = express();
 
@@ -22,7 +26,8 @@ app.use(express.urlencoded({ extended: true }));
 // We mount it globally because that's cheaper than per-route mounting and
 // it's a no-op on routes that don't read cookies.
 app.use(cookieParser());
-app.use(pinoHttp());
+
+// app.use(pinoHttp({ logger }));
 
 // --- CORS ---
 // `credentials: true` lets the browser send the refresh cookie on cross-origin
@@ -49,9 +54,9 @@ app.get("/health", (_req, res) => {
 });
 
 // --- Routes (added in Phase 5+) ---
-// app.use("/api/v1/auth", authRoutes);
-// app.use("/api/v1", userRoutes);
-// app.use("/api/v1", courseRoutes);
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/user", userRouter);
+app.use("/api/v1", courseRouter);
 // app.use("/api/v1", paymentRoutes);
 
 // --- Global error handler — MUST be last, AFTER all routes ---
