@@ -1,0 +1,29 @@
+ Updated verification list (now 9 steps instead of 10):
+
+  ┌─────┬──────────────────────────────────────────────────────────────────────────────────────┬──────────────────────────────────────────────────────────┐
+  │  #  │                                       Request                                        │                         Expected                         │
+  ├─────┼──────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ 1   │ POST /api/v1/payment/create-order body { courseId: <paidCourse.id> } with userToken  │ 201 { success, orderId, amount, currency, key, course:   │
+  │     │                                                                                      │ {...} }. Save orderId and key.                           │
+  ├─────┼──────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ 2   │ POST /api/v1/payment/create-order body { courseId: <freeCourse.id> } with userToken  │ 400 "This course is free — no payment needed"            │
+  ├─────┼──────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ 3   │ POST /api/v1/payment/create-order body { courseId: <paidCourse.id> } AFTER user      │ 200 { success, message: "You already own this course",   │
+  │     │ already purchased                                                                    │ alreadyPaid: true, courseId }                            │
+  ├─────┼──────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ 4   │ Complete Razorpay test checkout, then POST /api/v1/payment/verify body {             │ 200 { success, reference, courseId }                     │
+  │     │ razorpay_order_id, razorpay_payment_id, razorpay_signature, courseId }               │                                                          │
+  ├─────┼──────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ 5   │ Repeat step 4 with identical body                                                    │ 200, same response. Verify db.payments.countDocuments({  │
+  │     │                                                                                      │ razorpay_order_id }) is still 1                          │
+  ├─────┼──────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ 6   │ GET /api/v1/courses/<paidCourse.id> with userToken                                   │ 200 (was 403 before purchase). X-Cache: MISS then HIT on │
+  │     │                                                                                      │  repeat                                                  │
+  ├─────┼──────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ 7   │ POST /api/v1/payment/verify with tampered razorpay_signature                         │ 400 "Invalid payment signature"                          │
+  ├─────┼──────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  ├─────┼──────────────────────────────────────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+  │ 8   │ POST /api/v1/payment/webhook with valid x-razorpay-signature for a payment.captured event│ 200. Re-call with same body → 200 (idempotent)       │
+  ├─────┼───────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
+  │ 9   │ POST /api/v1/payment/webhook with invalid signature                                   │ 400 "Invalid webhook signature"                         │
+  └─────┴───────────────────────────────────────────────────────────────────────────────────────┴─────────────────────────────────────────────────────────┘
